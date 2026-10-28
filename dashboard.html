@@ -1,0 +1,938 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NVIDIA NIM Key Pool 管理控制台</title>
+  <style>
+    :root {
+      --bg: #0d1117;
+      --card: #161b22;
+      --border: #30363d;
+      --text: #c9d1d9;
+      --text-muted: #8b949e;
+      --accent: #58a6ff;
+      --accent-hover: #1f6feb;
+      --green: #3fb950;
+      --yellow: #d29922;
+      --red: #f85149;
+      --purple: #bc8cff;
+      --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background-color: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      padding: 24px;
+      line-height: 1.5;
+    }
+    .container { max-width: 1200px; margin: 0 auto; }
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 24px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid var(--border);
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+    h1 { font-size: 20px; font-weight: 600; color: #fff; display: flex; align-items: center; gap: 8px; }
+    .badge-live {
+      background: rgba(63, 185, 80, 0.15);
+      color: var(--green);
+      font-size: 12px;
+      padding: 2px 8px;
+      border-radius: 12px;
+      border: 1px solid rgba(63, 185, 80, 0.4);
+    }
+    .endpoint-box {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 8px 12px;
+      font-family: var(--font-mono);
+      font-size: 13px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .endpoint-box input {
+      background: #0d1117;
+      border: 1px solid var(--border);
+      color: var(--accent);
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-family: var(--font-mono);
+      font-size: 13px;
+      width: 440px;
+    }
+    .btn {
+      background: var(--card);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 6px 12px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 13px;
+      transition: all 0.2s;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .btn:hover { background: #21262d; border-color: #8b949e; }
+    .btn-primary { background: #238636; border-color: rgba(240, 246, 252, 0.1); color: #fff; font-weight: 500; }
+    .btn-primary:hover { background: #2ea043; }
+    .btn-purple { background: rgba(188, 140, 255, 0.15); border-color: rgba(188, 140, 255, 0.4); color: var(--purple); font-weight: 500; }
+    .btn-purple:hover { background: rgba(188, 140, 255, 0.25); }
+    .btn-danger { color: var(--red); }
+    .btn-danger:hover { background: rgba(248, 81, 73, 0.15); border-color: var(--red); }
+
+    /* Stats Grid */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+    .stat-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 16px;
+    }
+    .stat-title { font-size: 13px; color: var(--text-muted); margin-bottom: 6px; }
+    .stat-value { font-size: 26px; font-weight: 700; color: #fff; }
+    .stat-val-green { color: var(--green); }
+    .stat-val-yellow { color: var(--yellow); }
+    .stat-val-purple { color: var(--purple); }
+
+    /* Panel Card */
+    .panel {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 20px;
+      margin-bottom: 24px;
+    }
+    .panel-header {
+      font-size: 16px;
+      font-weight: 600;
+      color: #fff;
+      margin-bottom: 14px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    textarea {
+      width: 100%;
+      height: 120px;
+      background: #0d1117;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 10px;
+      color: #fff;
+      font-family: var(--font-mono);
+      font-size: 13px;
+      resize: vertical;
+      margin-bottom: 12px;
+    }
+    textarea:focus { outline: none; border-color: var(--accent); }
+    .import-options {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      flex-wrap: wrap;
+    }
+    .radio-label {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 13px;
+      cursor: pointer;
+    }
+
+    /* Table */
+    .table-container { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; text-align: left; }
+    th {
+      background: #0d1117;
+      color: var(--text-muted);
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--border);
+      font-weight: 600;
+    }
+    td { padding: 10px 12px; border-bottom: 1px solid var(--border); }
+    tr:hover td { background: rgba(255, 255, 255, 0.02); }
+    .tag {
+      font-size: 11px;
+      padding: 2px 8px;
+      border-radius: 12px;
+      font-weight: 600;
+      display: inline-block;
+    }
+    .tag-active { background: rgba(63, 185, 80, 0.2); color: var(--green); border: 1px solid rgba(63, 185, 80, 0.3); }
+    .tag-cooling { background: rgba(210, 153, 34, 0.2); color: var(--yellow); border: 1px solid rgba(210, 153, 34, 0.3); }
+    .tag-disabled { background: rgba(248, 81, 73, 0.2); color: var(--red); border: 1px solid rgba(248, 81, 73, 0.3); }
+    .key-text { font-family: var(--font-mono); color: #e6edf3; }
+
+    /* Modals */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(13, 17, 23, 0.88);
+      backdrop-filter: blur(5px);
+      z-index: 10000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .modal-box {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 24px;
+      width: 100%;
+      max-width: 440px;
+      box-shadow: 0 16px 36px rgba(0,0,0,0.6);
+    }
+    .modal-title { font-size: 18px; font-weight: 600; color: #fff; margin-bottom: 8px; }
+    .modal-desc { font-size: 13px; color: var(--text-muted); margin-bottom: 18px; line-height: 1.5; }
+    .modal-input {
+      width: 100%;
+      padding: 9px 12px;
+      background: #0d1117;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: #fff;
+      font-family: var(--font-mono);
+      font-size: 13px;
+      margin-bottom: 12px;
+    }
+    .modal-input:focus { outline: none; border-color: var(--accent); }
+
+    /* Code Snippet Box */
+    .code-box {
+      background: #0d1117;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 12px;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: #79c0ff;
+      overflow-x: auto;
+      margin-top: 10px;
+      position: relative;
+    }
+
+    /* Toast */
+    #toast {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      background: #238636;
+      color: #fff;
+      padding: 12px 20px;
+      border-radius: 6px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+      display: none;
+      font-size: 14px;
+      z-index: 20000;
+    }
+  </style>
+</head>
+<body>
+  <!-- Auth Modal -->
+  <div id="auth-overlay" class="modal-overlay" style="display:flex;">
+    <div class="modal-box">
+      <div class="modal-title">🔐 控制台管理员鉴权</div>
+      <div class="modal-desc">请输入管理员鉴权密钥 (Admin Key) 以访问 Key 池管理功能：</div>
+      <input type="password" id="auth-password-input" class="modal-input" placeholder="输入 Admin Key..." onkeydown="if(event.key==='Enter')handleLogin();">
+      <div id="auth-error-msg" style="color:var(--red); font-size:12px; margin-bottom:12px; display:none;">密钥错误，请重试</div>
+      <button class="btn btn-primary" style="width: 100%; justify-content: center; padding: 9px;" onclick="handleLogin()">验 证 并 进 入</button>
+    </div>
+  </div>
+
+  <!-- Confirm Overwrite Modal -->
+  <div id="confirm-overlay" class="modal-overlay" style="display:none;">
+    <div class="modal-box">
+      <div class="modal-title" style="display:flex; align-items:center; gap:8px;">
+        <span style="color:var(--yellow);">⚠️</span> 确认覆盖 Key 池？
+      </div>
+      <div class="modal-desc">
+        覆盖模式将从数据库中<b>彻底清空所有现存 Key</b>，重置序号并完全替换为新输入的 Key 列表。此操作无法撤销。
+      </div>
+      <div style="display:flex; justify-content:flex-end; gap:10px;">
+        <button class="btn" onclick="closeConfirmModal()">取 消</button>
+        <button class="btn btn-danger" onclick="executeOverwrite()">确认覆盖清空</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Edit Client Key Modal -->
+  <div id="edit-client-key-overlay" class="modal-overlay" style="display:none;">
+    <div class="modal-box">
+      <div class="modal-title" id="edit-modal-title">🔑 编辑客户端 Key</div>
+      <div class="modal-desc">修改该凭据的名称或自定义 Key 字符串（热生效）：</div>
+      <input type="hidden" id="edit-key-id">
+      <label style="font-size:12px; color:var(--text-muted); display:block; margin-bottom:4px;">凭据名称 / 备注：</label>
+      <input type="text" id="edit-key-name" class="modal-input" placeholder="例如：生产服务器、测试环境...">
+      <label style="font-size:12px; color:var(--text-muted); display:block; margin-bottom:4px;">API Key 字符串：</label>
+      <input type="text" id="edit-key-str" class="modal-input" placeholder="sk-alb-...">
+      <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:8px;">
+        <button class="btn" onclick="closeEditModal()">取 消</button>
+        <button class="btn btn-primary" onclick="saveClientKey()">保 存</button>
+      </div>
+    </div>
+  </div>
+  <!-- Change Admin Key Modal -->
+  <div id="change-admin-key-overlay" class="modal-overlay" style="display:none;">
+    <div class="modal-box">
+      <div class="modal-title">⚙️ 修改管理控制台登录密钥</div>
+      <div class="modal-desc">修改用于登录此管理控制台的 Admin Key（即时热生效）：</div>
+      <label style="font-size:12px; color:var(--text-muted); display:block; margin-bottom:4px;">当前 Admin Key：</label>
+      <input type="password" id="change-current-key" class="modal-input" placeholder="输入当前 Admin Key...">
+      <label style="font-size:12px; color:var(--text-muted); display:block; margin-bottom:4px;">新 Admin Key：</label>
+      <input type="text" id="change-new-key" class="modal-input" placeholder="输入新 Admin Key (至少4位)...">
+      <div id="change-key-error" style="color:var(--red); font-size:12px; margin-bottom:12px; display:none;"></div>
+      <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:8px;">
+        <button class="btn" onclick="closeChangeAdminKeyModal()">取 消</button>
+        <button class="btn btn-primary" onclick="saveNewAdminKey()">保存并热生效</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="container">
+    <header>
+      <div>
+        <h1>⚡ NVIDIA NIM Key Pool 管理控制台 <span class="badge-live">全局动态热重载</span></h1>
+        <div style="font-size: 12px; color: var(--text-muted); margin-top: 4px;">
+          基于 Supabase PostgreSQL + Edge Function 全局分布式负载均衡
+        </div>
+      </div>
+      <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+        <div class="endpoint-box">
+          <span>Base URL:</span>
+          <input type="text" id="endpoint-input" value="https://mdttynmiylrhfnctvzhx.supabase.co/functions/v1/v1">
+          <button class="btn" onclick="copyEndpoint()">复制</button>
+        </div>
+        <button class="btn" onclick="openChangeAdminKeyModal()">⚙️ 修改管理密码</button>
+        <button class="btn btn-danger" onclick="handleLogout()" title="清除本地凭据退出">登出</button>
+      </div>
+    </header>
+
+    <!-- Stats -->
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-title">上游总 Key 数量 (Compact)</div>
+        <div class="stat-value" id="st-total">-</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-title">正常就绪 (Active)</div>
+        <div class="stat-value stat-val-green" id="st-active">-</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-title">429 限流冷却中 (Cooling)</div>
+        <div class="stat-value stat-val-yellow" id="st-cooling">-</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-title">客户端调用凭据 (OpenAI Keys)</div>
+        <div class="stat-value stat-val-purple" id="st-client-keys">-</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-title">累计成功调度请求</div>
+        <div class="stat-value" id="st-success">-</div>
+      </div>
+    </div>
+
+    <!-- Section 1: Client OpenAI API Keys Management -->
+    <div class="panel" style="border-color: rgba(188, 140, 255, 0.3);">
+      <div class="panel-header">
+        <span style="display:flex; align-items:center; gap:8px;">
+          🔑 客户端调用凭据管理 (OpenAI API Keys)
+          <span style="font-size:11px; background:rgba(188, 140, 255, 0.15); color:var(--purple); padding:2px 8px; border-radius:10px;">鉴权热生效</span>
+        </span>
+        <button class="btn btn-purple" onclick="openAddKeyModal()">➕ 生成新调用 Key</button>
+      </div>
+      <div style="font-size:13px; color:var(--text-muted); margin-bottom:12px;">
+        所有通过 <code>/v1/chat/completions</code> 访问网关的客户端必须在 <code>Authorization: Bearer &lt;KEY&gt;</code> 中携带以下任一有效 Key。任何在此处添加、修改或删除的 Key 均实时生效。
+      </div>
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>凭据名称</th>
+              <th>客户端调用 Key (点击可直接复制)</th>
+              <th>状态</th>
+              <th>创建时间</th>
+              <th>最近被调用时间</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody id="client-keys-tbody">
+            <tr><td colspan="7" style="text-align: center; color: var(--text-muted);">正在加载客户端调用凭据...</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div style="margin-top:16px;">
+        <span style="font-size:12px; color:var(--text-muted); font-weight:600;">SDK 客户端接入示例：</span>
+        <div class="code-box" id="sdk-snippet">
+from openai import OpenAI
+
+client = OpenAI(
+    base_url="https://mdttynmiylrhfnctvzhx.supabase.co/functions/v1/v1",
+    api_key="sk-alb-..."  # 填入上方任一活跃状态的客户端调用 Key
+)
+        </div>
+      </div>
+    </div>
+
+    <!-- Section 2: Upstream Key Batch Import / Overwrite Panel -->
+    <div class="panel">
+      <div class="panel-header">
+        <span>📥 上游 NVIDIA NIM Keys 批量导入 / 覆盖</span>
+        <span style="font-size: 12px; font-weight: normal; color: var(--text-muted);" id="key-count-preview">检测到 0 个有效 Key</span>
+      </div>
+      <textarea id="import-text" placeholder="每行粘贴一个 NVIDIA Key（支持以 nvapi- 开头，亦支持逗号/空格分隔），支持同时批量粘贴数百个..."></textarea>
+      <div class="import-options">
+        <label class="radio-label">
+          <input type="radio" name="import-mode" value="append" checked>
+          <span><b>追加模式 (Append)</b>：保留现有 Key，自动去重写入新 Key 并紧凑整理序号</span>
+        </label>
+        <label class="radio-label">
+          <input type="radio" name="import-mode" value="overwrite">
+          <span><b style="color: var(--yellow);">覆盖模式 (Overwrite)</b>：清空全部旧 Key，序号从 1 重新排起，完全替换为输入列表</span>
+        </label>
+        <button class="btn btn-primary" onclick="submitImport()" id="btn-submit-import">🚀 立即保存并热重载生效</button>
+      </div>
+    </div>
+
+    <!-- Section 3: Upstream Key Pool Table -->
+    <div class="panel">
+      <div class="panel-header">
+        <span style="display:flex; align-items:center; gap:8px;">
+          📋 上游 NVIDIA Key 池状态监控
+          <span style="font-size:11px; background:rgba(248, 81, 73, 0.15); color:var(--red); padding:2px 8px; border-radius:10px;">失效 401/403 随见即清理</span>
+        </span>
+        <div style="display: flex; gap: 8px;">
+          <button class="btn" onclick="fetchData()">🔄 刷新状态</button>
+          <button class="btn" onclick="resetCooling()">⚡ 解除全部 429 冷却</button>
+          <button class="btn" onclick="resequenceKeys()">🔢 整理连续序号 (1..N)</button>
+        </div>
+      </div>
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th># 序号</th>
+              <th>API Key (部分脱敏)</th>
+              <th>运行状态</th>
+              <th>冷却截止 / 倒计时</th>
+              <th>成功调用</th>
+              <th>失败重试</th>
+              <th>最近被调度时间</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody id="keys-tbody">
+            <tr><td colspan="8" style="text-align: center; color: var(--text-muted);">正在加载 Key 列表...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast"></div>
+
+  <script>
+    const memStore = {};
+    function getAdminKey() {
+      try {
+        return localStorage.getItem("alb_admin_key") || memStore["alb_admin_key"] || "";
+      } catch {
+        return memStore["alb_admin_key"] || "";
+      }
+    }
+
+    function setAdminKey(key) {
+      try {
+        localStorage.setItem("alb_admin_key", key);
+      } catch {
+        memStore["alb_admin_key"] = key;
+      }
+    }
+
+    function removeAdminKey() {
+      try {
+        localStorage.removeItem("alb_admin_key");
+      } catch {
+        delete memStore["alb_admin_key"];
+      }
+    }
+
+    const DEFAULT_BASE_URL = "__PROXY_BASE_URL__";
+
+    function getBaseUrl() {
+      const input = document.getElementById("endpoint-input");
+      if (input && input.value && input.value.startsWith("http")) {
+        return input.value.trim().replace(/\/$/, "");
+      }
+      if (window.location.protocol.startsWith("http")) {
+        return window.location.origin + window.location.pathname.replace(/\/admin\/?$/, "");
+      }
+      return DEFAULT_BASE_URL;
+    }
+
+    function copyEndpoint() {
+      navigator.clipboard.writeText(getBaseUrl());
+      showToast("✅ 已复制 Base URL 到剪贴板！");
+    }
+
+    function showToast(msg, isError = false) {
+      const t = document.getElementById("toast");
+      t.innerText = msg;
+      t.style.background = isError ? "#da3633" : "#238636";
+      t.style.display = "block";
+      setTimeout(() => { t.style.display = "none"; }, 3500);
+    }
+
+    function handleLogout() {
+      removeAdminKey();
+      document.getElementById("auth-overlay").style.display = "flex";
+      document.getElementById("auth-password-input").value = "";
+      document.getElementById("auth-error-msg").style.display = "none";
+    }
+
+    async function handleLogin() {
+      const key = document.getElementById("auth-password-input").value.trim();
+      if (!key) return;
+      setAdminKey(key);
+      try {
+        const res = await fetch(getBaseUrl() + "/admin/api/keys", {
+          headers: { "X-Admin-Key": key }
+        });
+        if (res.status === 401) {
+          document.getElementById("auth-error-msg").style.display = "block";
+          document.getElementById("auth-error-msg").innerText = "鉴权失败：密钥错误";
+          removeAdminKey();
+          return;
+        }
+        document.getElementById("auth-overlay").style.display = "none";
+        document.getElementById("auth-error-msg").style.display = "none";
+        await fetchData();
+        await fetchClientKeys();
+      } catch (err) {
+        document.getElementById("auth-error-msg").style.display = "block";
+        document.getElementById("auth-error-msg").innerText = "网络连接失败: " + err.message;
+      }
+    }
+
+    async function authFetch(path, options = {}) {
+      const headers = options.headers || {};
+      headers["X-Admin-Key"] = getAdminKey();
+      const res = await fetch(getBaseUrl() + path, { ...options, headers });
+      if (res.status === 401) {
+        handleLogout();
+        document.getElementById("auth-error-msg").style.display = "block";
+        document.getElementById("auth-error-msg").innerText = "会话鉴权失效，请重新输入密钥";
+        throw new Error("401 Unauthorized");
+      }
+      return res;
+    }
+
+    // --- Client Proxy Keys Management ---
+    let cachedClientKeys = [];
+
+    async function fetchClientKeys() {
+      if (!getAdminKey()) return;
+      try {
+        const res = await authFetch("/admin/api/proxy-keys");
+        const data = await res.json();
+        if (!data.success) throw new Error(data.error);
+
+        cachedClientKeys = data.keys || [];
+        document.getElementById("st-client-keys").innerText = cachedClientKeys.length;
+
+        const tbody = document.getElementById("client-keys-tbody");
+        if (cachedClientKeys.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--text-muted);padding:20px;">尚无调用凭据，请点击右上角生成</td></tr>';
+          return;
+        }
+
+        tbody.innerHTML = cachedClientKeys.map(k => {
+          const statusTag = k.status === 'active' 
+            ? '<span class="tag tag-active">● 正常调用</span>' 
+            : '<span class="tag tag-disabled">已停用</span>';
+          const lastUsed = k.last_used_at ? new Date(k.last_used_at).toLocaleTimeString() : '尚未调用';
+          const created = k.created_at ? new Date(k.created_at).toLocaleDateString() : '-';
+
+          return `<tr>
+            <td>${k.id}</td>
+            <td><b>${escapeHtml(k.key_name)}</b></td>
+            <td class="key-text" style="cursor:pointer;" onclick="navigator.clipboard.writeText('${k.api_key}');showToast('✅ 已复制 Client API Key');" title="点击复制完整 Key">
+              ${k.api_key.slice(0, 16)}...${k.api_key.slice(-8)}
+            </td>
+            <td>${statusTag}</td>
+            <td>${created}</td>
+            <td>${lastUsed}</td>
+            <td>
+              <button class="btn" style="padding:2px 8px;font-size:11px;" onclick="openEditKeyModal(${k.id})">修改</button>
+              <button class="btn" style="padding:2px 8px;font-size:11px;" onclick="toggleClientKey(${k.id}, '${k.status === 'active' ? 'disabled' : 'active'}')">${k.status === 'active' ? '停用' : '启用'}</button>
+              <button class="btn btn-danger" style="padding:2px 8px;font-size:11px;" onclick="deleteClientKey(${k.id})">删除</button>
+            </td>
+          </tr>`;
+        }).join('');
+
+        // Update SDK snippet with first active key
+        const firstActive = cachedClientKeys.find(k => k.status === 'active');
+        if (firstActive) {
+          document.getElementById("sdk-snippet").innerText = 
+`from openai import OpenAI
+
+client = OpenAI(
+    base_url="${getBaseUrl()}",
+    api_key="${firstActive.api_key}"  # ${firstActive.key_name}
+)`;
+        }
+      } catch (err) {
+        if (err.message !== "401 Unauthorized") {
+          showToast("加载 Client Keys 失败: " + err.message, true);
+        }
+      }
+    }
+
+    function openAddKeyModal() {
+      document.getElementById("edit-modal-title").innerText = "➕ 生成新客户端调用 Key";
+      document.getElementById("edit-key-id").value = "";
+      document.getElementById("edit-key-name").value = "Key " + (cachedClientKeys.length + 1);
+      document.getElementById("edit-key-str").value = "";
+      document.getElementById("edit-key-str").placeholder = "留空将自动生成随机 sk-alb-...";
+      document.getElementById("edit-client-key-overlay").style.display = "flex";
+    }
+
+    function openEditKeyModal(id) {
+      const k = cachedClientKeys.find(x => x.id === id);
+      if (!k) return;
+      document.getElementById("edit-modal-title").innerText = "✏️ 修改客户端 Key";
+      document.getElementById("edit-key-id").value = id;
+      document.getElementById("edit-key-name").value = k.key_name;
+      document.getElementById("edit-key-str").value = k.api_key;
+      document.getElementById("edit-client-key-overlay").style.display = "flex";
+    }
+
+    function closeEditModal() {
+      document.getElementById("edit-client-key-overlay").style.display = "none";
+    }
+
+    async function saveClientKey() {
+      const id = document.getElementById("edit-key-id").value;
+      const key_name = document.getElementById("edit-key-name").value.trim() || "API Key";
+      const api_key = document.getElementById("edit-key-str").value.trim();
+
+      try {
+        if (!id) {
+          // Create
+          const res = await authFetch("/admin/api/proxy-keys", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ key_name, api_key: api_key || undefined })
+          });
+          const data = await res.json();
+          if (!data.success) throw new Error(data.error);
+          showToast("🎉 成功创建客户端调用 Key！");
+        } else {
+          // Update
+          const res = await authFetch("/admin/api/proxy-keys/" + id, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ key_name, api_key: api_key || undefined })
+          });
+          const data = await res.json();
+          if (!data.success) throw new Error(data.error);
+          showToast("✅ 已成功修改凭据并即时热生效！");
+        }
+        closeEditModal();
+        await fetchClientKeys();
+      } catch (err) {
+        showToast("保存失败: " + err.message, true);
+      }
+    }
+
+    async function toggleClientKey(id, newStatus) {
+      try {
+        const res = await authFetch("/admin/api/proxy-keys/" + id, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status: newStatus })
+        });
+        const data = await res.json();
+        if (!data.success) throw new Error(data.error);
+        showToast(`已成功切换凭据状态为 ${newStatus === 'active' ? '启用' : '停用'}！`);
+        await fetchClientKeys();
+      } catch (err) {
+        showToast("切换失败: " + err.message, true);
+      }
+    }
+
+    async function deleteClientKey(id) {
+      try {
+        const res = await authFetch("/admin/api/proxy-keys/" + id, { method: "DELETE" });
+        const data = await res.json();
+        if (!data.success) throw new Error(data.error);
+        showToast("已删除客户端调用凭据！");
+        await fetchClientKeys();
+      } catch (err) {
+        showToast("删除失败: " + err.message, true);
+      }
+    }
+
+    // --- Upstream NVIDIA Keys Management ---
+    const textarea = document.getElementById("import-text");
+    textarea.addEventListener("input", () => {
+      const text = textarea.value;
+      const matches = text.match(/nvapi-[A-Za-z0-9_\-]+/g) || [];
+      const unique = new Set(matches);
+      document.getElementById("key-count-preview").innerText = 
+        `检测到 ${matches.length} 个 Key（去重后 ${unique.size} 个）`;
+    });
+
+    let pendingImportPayload = null;
+
+    function closeConfirmModal() {
+      document.getElementById("confirm-overlay").style.display = "none";
+      pendingImportPayload = null;
+    }
+
+    async function submitImport() {
+      const text = textarea.value.trim();
+      if (!text) {
+        showToast("请先在文本框中粘贴 Key 列表", true);
+        return;
+      }
+      const mode = document.querySelector('input[name="import-mode"]:checked').value;
+      if (mode === "overwrite") {
+        pendingImportPayload = { text, mode };
+        document.getElementById("confirm-overlay").style.display = "flex";
+        return;
+      }
+      await doImport(text, mode);
+    }
+
+    async function executeOverwrite() {
+      if (!pendingImportPayload) return;
+      const { text, mode } = pendingImportPayload;
+      closeConfirmModal();
+      await doImport(text, mode);
+    }
+
+    async function doImport(text, mode) {
+      const btn = document.getElementById("btn-submit-import");
+      btn.disabled = true;
+      btn.innerText = "⏳ 正在提交并热重载...";
+
+      try {
+        const res = await authFetch("/admin/api/import", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text, mode })
+        });
+        const data = await res.json();
+        if (!data.success) throw new Error(data.error);
+
+        showToast(`🎉 成功${mode === 'overwrite' ? '覆盖' : '追加'}导入 ${data.count} 个 Key，已紧凑重置序号并即时热生效！`);
+        textarea.value = "";
+        document.getElementById("key-count-preview").innerText = "检测到 0 个有效 Key";
+        await fetchData();
+      } catch (err) {
+        showToast("导入失败: " + err.message, true);
+      } finally {
+        btn.disabled = false;
+        btn.innerText = "🚀 立即保存并热重载生效";
+      }
+    }
+
+    async function fetchData() {
+      if (!getAdminKey()) {
+        document.getElementById("auth-overlay").style.display = "flex";
+        return;
+      }
+      try {
+        const res = await authFetch("/admin/api/keys");
+        const data = await res.json();
+        if (!data.success) throw new Error(data.error);
+
+        document.getElementById("st-total").innerText = data.stats.total;
+        document.getElementById("st-active").innerText = data.stats.active;
+        document.getElementById("st-cooling").innerText = data.stats.cooling;
+        document.getElementById("st-success").innerText = data.stats.success_count;
+
+        const tbody = document.getElementById("keys-tbody");
+        if (data.keys.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--text-muted);padding:30px;">Key 池为空，请在上方批量导入</td></tr>';
+          return;
+        }
+
+        const now = new Date();
+        tbody.innerHTML = data.keys.map((k, idx) => {
+          let statusTag = '';
+          let cooldownDesc = '-';
+          if (k.status === 'active') {
+            statusTag = '<span class="tag tag-active">● 就绪可用</span>';
+          } else if (k.status === 'cooling') {
+            const until = new Date(k.cooldown_until);
+            const diffSec = Math.max(0, Math.round((until - now) / 1000));
+            statusTag = '<span class="tag tag-cooling">429 限流中</span>';
+            cooldownDesc = `<span style="color:var(--yellow)">${diffSec}s 后解除</span>`;
+          }
+
+          const maskedKey = k.api_key.slice(0, 14) + '...' + k.api_key.slice(-6);
+          const lastUsed = k.last_used_at ? new Date(k.last_used_at).toLocaleTimeString() : '尚未调用';
+
+          return `<tr>
+            <td><b>${k.id}</b></td>
+            <td class="key-text" title="点击复制完整 Key" style="cursor:pointer;" onclick="navigator.clipboard.writeText('${k.api_key}');showToast('已复制完整 Key');">${maskedKey}</td>
+            <td>${statusTag}</td>
+            <td>${cooldownDesc}</td>
+            <td>${k.success_count || 0}</td>
+            <td>${k.error_count || 0}</td>
+            <td>${lastUsed}</td>
+            <td>
+              <button class="btn btn-danger" style="padding:2px 8px;font-size:11px;" onclick="deleteKey(${k.id})">删除</button>
+            </td>
+          </tr>`;
+        }).join('');
+      } catch (err) {
+        if (err.message !== "401 Unauthorized") {
+          showToast("加载状态失败: " + err.message, true);
+        }
+      }
+    }
+
+    async function resetCooling() {
+      try {
+        const res = await authFetch("/admin/api/reset-cooling", { method: "POST" });
+        const data = await res.json();
+        if (data.success) {
+          showToast("⚡ 所有处于 429 冷却状态的 Key 已立即重置恢复可用！");
+          await fetchData();
+        }
+      } catch (err) {
+        showToast("重置失败: " + err.message, true);
+      }
+    }
+
+    async function resequenceKeys() {
+      try {
+        const res = await authFetch("/admin/api/resequence", { method: "POST" });
+        const data = await res.json();
+        if (data.success) {
+          showToast("🔢 已紧凑重置全部 Key 序号为 1..N 连续排列！");
+          await fetchData();
+        }
+      } catch (err) {
+        showToast("重置序号失败: " + err.message, true);
+      }
+    }
+
+    async function deleteKey(id) {
+      try {
+        const res = await authFetch("/admin/api/key/" + id, { method: "DELETE" });
+        const data = await res.json();
+        if (data.success) {
+          showToast("删除成功并自动重排序号！");
+          await fetchData();
+        }
+      } catch (err) {
+        showToast("删除失败: " + err.message, true);
+      }
+    }
+
+    function escapeHtml(str) {
+      return (str || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+    }
+
+    // Startup
+    if (getAdminKey()) {
+      document.getElementById("auth-overlay").style.display = "none";
+      fetchData();
+      fetchClientKeys();
+    } else {
+      document.getElementById("auth-overlay").style.display = "flex";
+    }
+
+    setInterval(() => {
+      if (getAdminKey()) {
+        fetchData();
+        fetchClientKeys();
+      }
+    }, 10000);
+
+    function openChangeAdminKeyModal() {
+      document.getElementById("change-current-key").value = getAdminKey();
+      document.getElementById("change-new-key").value = "";
+      document.getElementById("change-key-error").style.display = "none";
+      document.getElementById("change-admin-key-overlay").style.display = "flex";
+    }
+
+    function closeChangeAdminKeyModal() {
+      document.getElementById("change-admin-key-overlay").style.display = "none";
+    }
+
+    async function saveNewAdminKey() {
+      const current_key = document.getElementById("change-current-key").value.trim();
+      const new_key = document.getElementById("change-new-key").value.trim();
+      const errBox = document.getElementById("change-key-error");
+
+      if (!new_key || new_key.length < 4) {
+        errBox.innerText = "新管理密钥长度不能少于 4 位";
+        errBox.style.display = "block";
+        return;
+      }
+
+      try {
+        const res = await authFetch("/admin/api/change-admin-key", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ current_key, new_key })
+        });
+        const data = await res.json();
+        if (!data.success) throw new Error(data.error);
+
+        setAdminKey(new_key);
+        closeChangeAdminKeyModal();
+        showToast("🎉 管理员登录密钥已修改成功，已即时热生效！");
+      } catch (err) {
+        errBox.innerText = err.message;
+        errBox.style.display = "block";
+      }
+    }
+
+    window.openChangeAdminKeyModal = openChangeAdminKeyModal;
+    window.closeChangeAdminKeyModal = closeChangeAdminKeyModal;
+    window.saveNewAdminKey = saveNewAdminKey;
+    // Window bindings for event handlers
+    window.handleLogin = handleLogin;
+    window.handleLogout = handleLogout;
+    window.fetchData = fetchData;
+    window.fetchClientKeys = fetchClientKeys;
+    window.submitImport = submitImport;
+    window.resetCooling = resetCooling;
+    window.resequenceKeys = resequenceKeys;
+    window.deleteKey = deleteKey;
+    window.copyEndpoint = copyEndpoint;
+    window.closeConfirmModal = closeConfirmModal;
+    window.executeOverwrite = executeOverwrite;
+    window.openAddKeyModal = openAddKeyModal;
+    window.openEditKeyModal = openEditKeyModal;
+    window.closeEditModal = closeEditModal;
+    window.saveClientKey = saveClientKey;
+    window.toggleClientKey = toggleClientKey;
+    window.deleteClientKey = deleteClientKey;
+  </script>
+</body>
+</html>
